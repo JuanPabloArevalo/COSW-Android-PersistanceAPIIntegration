@@ -2,6 +2,8 @@ package co.edu.pdam.eci.persistenceapiintegration.ui.activity;
 
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 
 import java.io.IOException;
@@ -16,15 +18,36 @@ import co.edu.pdam.eci.persistenceapiintegration.data.entity.Team;
 import co.edu.pdam.eci.persistenceapiintegration.network.NetworkException;
 import co.edu.pdam.eci.persistenceapiintegration.network.RequestCallback;
 import co.edu.pdam.eci.persistenceapiintegration.network.RetrofitNetwork;
+import co.edu.pdam.eci.persistenceapiintegration.ui.adapter.TeamsAdapter;
 
 public class MainActivity extends AppCompatActivity {
+
+    private RecyclerView recyclerView;
+    private OrmModel ormModel;
+
 
     @Override
     protected void onCreate( Bundle savedInstanceState ) {
         super.onCreate( savedInstanceState );
         setContentView( R.layout.activity_main );
+        recyclerView = (RecyclerView) findViewById( R.id.recyclerView );
+        configureRecyclerView();
+        //createTeamLocalDB();
+        //getAllTeamsLocalDB();
+        ConectToApiNetwork ca = new ConectToApiNetwork();
+    }
 
-        OrmModel ormModel = new OrmModel();
+
+    private void configureRecyclerView() {
+        recyclerView = (RecyclerView) findViewById( R.id.recyclerView );
+        recyclerView.setHasFixedSize( true );
+        RecyclerView.LayoutManager layoutManager = new LinearLayoutManager( this );
+        recyclerView.setLayoutManager( layoutManager );
+
+    }
+
+    private void createTeamLocalDB(){
+        ormModel = new OrmModel();
         ormModel.init(this);
         Team equipo1 = new Team();
         equipo1.setName("Millonarios");
@@ -35,8 +58,9 @@ public class MainActivity extends AppCompatActivity {
         } catch (DBException e) {
             e.printStackTrace();
         }
+    }
 
-
+    private void getAllTeamsLocalDB(){
         try {
             List<Team> teams = ormModel.getTeamDao().getAll();
             for(Team tea: teams){
@@ -45,30 +69,42 @@ public class MainActivity extends AppCompatActivity {
         } catch (DBException e) {
             e.printStackTrace();
         }
+    }
 
-        ExecutorService executorService = Executors.newFixedThreadPool( 1 );
+    private class ConectToApiNetwork{
+        RetrofitNetwork rfN;
+        ExecutorService executorService;
+        private List<Team> teams;
 
-        executorService.execute( new Runnable(){
-            @Override
-            public void run(){
-                RetrofitNetwork rfN = new RetrofitNetwork();
-                rfN.getTeams(new RequestCallback<List<Team>>() {
-                    @Override
-                    public void onSuccess(List<Team> response) {
 
-                        Log.i("Tamaño",response.size()+"");
-                        for(Team tea : response){
-                            Log.i("Nombre",tea.getShortName()+"");
+        public ConectToApiNetwork() {
+            rfN = new RetrofitNetwork();
+            executorService = Executors.newFixedThreadPool(1);
+            executorService.execute(new Runnable() {
+                @Override
+                public void run() {
+                    rfN.getTeams(new RequestCallback<List<Team>>() {
+                        @Override
+                        public void onSuccess(List<Team> response) {
+                            teams = response;
                         }
-                    }
 
-                    @Override
-                    public void onFailed(NetworkException e) {
-                        e.printStackTrace();
-                    }
-                });
-            }
-        } );
+                        @Override
+                        public void onFailed(NetworkException e) {
+                            e.printStackTrace();
+                        }
+                    });
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            recyclerView.setAdapter(new TeamsAdapter(teams));
+                        }
+                    });
+                }
+            });
+        }
+
+
 
 
 
